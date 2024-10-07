@@ -1,29 +1,29 @@
 const express = require('express');
-const session = require('express-session');
-const passport = require('passport');
-const LocalStrategy = require('passport-local').Strategy;
-const crypto = require('crypto');
-const mysql = require('mysql')
+const mysql = require('mysql2');
+
 const db = mysql.createConnection({
     user: "root",
     host: "localhost",
     password: "password",
-    database: "UserMailCryp"
+    database: "MailCrypDb"
 });
 
 const app = express();
 
-app.get('/insert', (req,res) => {
+// Test route to insert user into the database
+app.get('/insert', (req, res) => {
   db.query(
-    'INSERT INTO USERS (username password) VALUES ("sebastien",1234)', 
-    (err,result) => {
-    if(err){
-      console.log(err);
-      res.send('error')
-    }
-    res.send(result)
-  })
+    'INSERT INTO USERS (id, username, password) VALUES (?, ?, ?)', 
+    [1,"sebastien", "1234"], // Use placeholders for SQL injection protection
+    (err, result) => {
+      if (err) {
+        console.log(err);
+        return res.send('Error occurred');
+      }
+      res.send('User inserted successfully');
+  });
 });
+
 app.listen(3000, () => {
   console.log("running at port 3000");
-})
+});
