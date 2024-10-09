@@ -2,19 +2,36 @@ const express = require('express');
 const mysql = require('mysql2');
 const cors = require('cors');
 const bcrypt = require('bcrypt');
+const session = require('express-session');
+const passport = require('passport');
+const LocalStrategy = require('passport-local').Strategy;
+
 const db = mysql.createConnection({
-    user: "root",
-    host: "localhost",
-    password: "password",
-    database: "MailCrypDb"
+  user: "root",
+  host: "localhost",
+  password: "password",
+  database: "mailcrypdb"
 });
 
-
-
 const app = express();
+
+// Middleware
 app.use(express.urlencoded({ extended: true }));
 app.use(cors());
-// Test route to insert user into the database
+app.use(express.json());
+
+// Session middleware for persistent login sessions
+app.use(session({
+  secret: 'some_secret',  // replace with a strong secret key
+  resave: false,
+  saveUninitialized: true
+}));
+
+// Initialize Passport and session
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Helper function for queries
 const query = (sql, params) => {
   return new Promise((resolve, reject) => {
     db.query(sql, params, (error, results) => {
@@ -26,41 +43,77 @@ const query = (sql, params) => {
   });
 };
 
-app.post('/login', async (req, res) => {
-  const username = req.body.username;
-  const plainPassword = req.body.password;
-
+// Passport Local Strategy
+passport.use(new LocalStrategy(async (username, password, done) => {
   try {
-    const results = await query('USE UserMailCryp SELECT password FROM user WHERE username = ?', [username]);
-
+    const results = await query('SELECT id, username, password FROM users WHERE username = ?', [username]);
+    
     if (results.length === 0) {
-      return res.status(400).send('User not found');
+      return done(null, false, { message: 'User not found' });
     }
 
-    const hashedPassword = results[0].password;
-    const isMatch = await bcrypt.compare(plainPassword, hashedPassword);
+    const user = results[0];
+    const isMatch = await bcrypt.compare(password, user.password);
 
     if (isMatch) {
-      res.status(200).send('Login successful');
+      return done(null, user);  // Success: pass user data to next step
     } else {
-      res.status(401).send('Invalid credentials');
+      return done(null, false, { message: 'Invalid credentials' });
     }
   } catch (error) {
-    console.error(error);
-    res.status(500).send('Server error');
+    return done(error);
+  }
+}));
+
+// Serialize user info into session
+passport.serializeUser((user, done) => {
+  done(null, user.id);
+});
+
+// Deserialize user info from session
+passport.deserializeUser(async (id, done) => {
+  try {
+    const results = await query('SELECT id, username FROM users WHERE id = ?', [id]);
+    if (results.length === 0) {
+      return done(new Error('User not found'));
+    }
+    return done(null, results[0]);
+  } catch (error) {
+    done(error);
   }
 });
 
+// POST route for user login with Passport.js
+app.post('/login', passport.authenticate('local', {
+  successRedirect: '/success',
+  failureRedirect: '/login-failed',
+  failureFlash: false
+}));
+
+// Route to check if user is authenticated
+app.get('/success', (req, res) => {
+  if (req.isAuthenticated()) {
+    res.status(200).send('Login successful');
+  } else {
+    res.status(401).send('You are not authenticated');
+  }
+});
+
+// Route for failed login
+app.get('/login-failed', (req, res) => {
+  res.status(401).send('Login failed');
+});
+
+// POST route to create a new account
 app.post('/create', async (req, res) => {
   const username = req.body.username;
   const plainPassword = req.body.password;
-  console.log(plainPassword);
 
   try {
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(plainPassword, saltRounds);
 
-    await query('USE UserMailCryp  INSERT INTO user (username, password) VALUES (?, ?)', [username, hashedPassword]);
+    await query('INSERT INTO users (username, password) VALUES (?, ?)', [username, hashedPassword]);
 
     res.status(200).send('Account created successfully');
   } catch (error) {
@@ -69,8 +122,7 @@ app.post('/create', async (req, res) => {
   }
 });
 
-
-
+// Start the server
 app.listen(3000, () => {
   console.log("running at port 3000");
 });
