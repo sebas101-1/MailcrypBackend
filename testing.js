@@ -3,7 +3,7 @@ const nodemailer = require('nodemailer');
 // Create a transporter object using SMTP transport
 let transporter = nodemailer.createTransport({
   host: 'localhost',  // Your Postfix server (assumed to be running on localhost)
-  port: 25,           // Standard SMTP port
+  port: 25,           // Standard SMTPport
   secure: false,      // If you are using TLS/SSL, set this to true and change the port to 465
   debug: true,  // Enable debug output
   logger: true,  // Log to console

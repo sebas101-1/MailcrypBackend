@@ -19,7 +19,6 @@ const app = express();
 app.use(express.urlencoded({ extended: true }));
 app.use(cors());
 app.use(express.json());
-
 // Session middleware for persistent login sessions
 app.use(session({
   secret: 'some_secret',  // replace with a strong secret key
@@ -49,12 +48,12 @@ passport.use(new LocalStrategy(async (username, password, done) => {
     const results = await query('SELECT id, username, password FROM users WHERE username = ?', [username]);
     
     if (results.length === 0) {
+      console.log("user Not Found");
       return done(null, false, { message: 'User not found' });
     }
 
     const user = results[0];
     const isMatch = await bcrypt.compare(password, user.password);
-
     if (isMatch) {
       return done(null, user);  // Success: pass user data to next step
     } else {
@@ -84,18 +83,46 @@ passport.deserializeUser(async (id, done) => {
 });
 
 // POST route for user login with Passport.js
-app.post('/login', passport.authenticate('local', {
-  successRedirect: '/success',
-  failureRedirect: '/login-failed',
-  failureFlash: false
-}));
+app.post('/login', (req, res, next) => {
+  passport.authenticate('local', (err, user, info) => {
+    if (err) {
+      return res.status(500).json({success: false, message: 'Server error' });
+    }
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'Invalid credentials' });  // Authentication failed
+    }
+    
+    // Successful authentication
+    console.log("succsessful");
+    return res.status(200).json({ success: true, message: 'Login successful' });  // Send success response;
+  })(req, res, next);
+});
 
 // Route to check if user is authenticated
-app.get('/success', (req, res) => {
+app.get('/loggedIn', (req, res) => {
   if (req.isAuthenticated()) {
     res.status(200).send('Login successful');
+    console.log("logged in");
   } else {
     res.status(401).send('You are not authenticated');
+    console.log("notlogged")
+  }
+});
+
+app.post('/logout', function(req, res, next){
+  req.logout(function(err) {
+    if (err) { return next(err); }
+    console.log('it worked');
+    return("logged out");
+  });
+});
+
+app.get('/home', (req, res) => {
+  if (req.isAuthenticated()) {
+    res.send('Welcome to your dashboard!');
+    console.log("user is logged in!!")
+  } else {
+    res.redirect('/');
   }
 });
 
