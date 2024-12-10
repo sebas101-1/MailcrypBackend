@@ -3,10 +3,11 @@ import { hash } from 'bcrypt';
 import mysql from 'mysql2';
 // Create a transporter object using SMTP transport
 const db = mysql.createConnection({
-  user: "root",
+  user: "backend_root",
   host: "localhost",
-  password: "password",
-  database: "mailcrypdb"
+  password: "586731",
+  port: 3307,
+  database: "mailserver_db"
 });
 const testHashedPassword = await hash('1234', 10);
 let transporter = createTransport({
@@ -17,14 +18,19 @@ let transporter = createTransport({
   logger: true,  // Log to console
   connectionTimeout: 10000, // increase timeout to 10 seconds
   auth: {
-    user: 'jeff@localhost',
+    user: 'test@localhost',
     pass: testHashedPassword
-  }
+  },
+  tls: {
+    rejectUnauthorized: false, // Allow self-signed certificates
+  },
+  logger: true, // Enables logging to the console
+  debug: true,  // Includes debug information
 });
 
 // Set up the email options
 let mailOptions = {
-  from: '"Admin" <admin@localhost>',  // Sender address
+  from: '"test" <test@localhost>',  // Sender address
   to: 'jeff@localhost',          // List of receivers (Sebastien's email)
   subject: 'Test Email',              // Subject line
   text: 'This is a test email sent using Node.js and Postfix!',  // Plain text body
