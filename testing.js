@@ -1,6 +1,7 @@
 import { createTransport } from 'nodemailer';
 import { hash } from 'bcrypt';
 import mysql from 'mysql2';
+import bcrypt from 'bcrypt';
 // Create a transporter object using SMTP transport
 const db = mysql.createConnection({
   user: "backend_root",
@@ -9,7 +10,16 @@ const db = mysql.createConnection({
   port: 3307,
   database: "mailserver_db"
 });
-const testHashedPassword = await hash('1234', 10);
+const query = (sql, params) => {
+  return new Promise((resolve, reject) => {
+    db.query(sql, params, (error, results) => {
+      if (error) {
+        return reject(error);
+      }
+      resolve(results);
+    });
+  });
+};
 let transporter = createTransport({
   host: 'localhost',  // Your Postfix server (assumed to be running on localhost)
   port: 25,           // Standard SMTPport
@@ -19,7 +29,7 @@ let transporter = createTransport({
   connectionTimeout: 10000, // increase timeout to 10 seconds
   auth: {
     user: 'test@localhost',
-    pass: testHashedPassword
+    pass: '1234'
   },
   tls: {
     rejectUnauthorized: false, // Allow self-signed certificates
@@ -30,8 +40,8 @@ let transporter = createTransport({
 
 // Set up the email options
 let mailOptions = {
-  from: '"test" <test@localhost>',  // Sender address
-  to: 'jeff@localhost',          // List of receivers (Sebastien's email)
+  from: '"Sebastien " <test@localhost>',  // Sender address
+  to: 'test@localhost',          // List of receivers (Sebastien's email)
   subject: 'Test Email',              // Subject line
   text: 'This is a test email sent using Node.js and Postfix!',  // Plain text body
   html: '<b>This is a test email sent using Node.js and Postfix!</b>'  // HTML body (optional)
@@ -50,23 +60,24 @@ const sendMail = async () =>{
 
 // Function to create a new mail account
 const createMailAccount = async (email, password) => {
+  const username = email;
+  const plainPassword = password;
+  console.log("Creating Account")
+
   try {
     // Hash the password
-    const hashedPassword = await hash(password, 10);
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(plainPassword, saltRounds);
+    
+    // Insert the new user into the database
+    await query('INSERT INTO users (email, password, home, quota) VALUES (?, ?,?,102400)', [username+"@localhost", hashedPassword,("/var/mail/localhost"+username)]);
 
-    // Insert the user into the database
-    db.query('INSERT INTO users (username, password) VALUES (?, ?)', [email, hashedPassword], (err, result) => {
-      if (err) {
-        console.error('Error inserting user into database:', err);
-        return;
-      }
-      console.log('User created successfully:', result);
-    });
   } catch (error) {
-    console.error('Error creating mail account:', error);
+    console.error('Error creating account:', error);
   }
 };
 
 // Example usage
-// createMailAccount('jeff@localhost', '1234');
+// createMailAccount('jeff', '1234');
+
 sendMail();

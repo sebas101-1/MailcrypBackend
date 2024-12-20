@@ -56,6 +56,7 @@ passport.use(new LocalStrategy(async (username, password, done) => {
 
     const user = results[0];
     // Compare hashed passwords
+    console.log()
     const isMatch = await bcrypt.compare(password, user.password);
     if (isMatch) {
       return done(null, user);  // Success: pass user data to next step
@@ -112,16 +113,15 @@ app.get('/loggedIn', (req, res) => {
 // POST route to create a new account
 app.post('/create', async (req, res) => {
   const username = req.body.username;
-  const plainPassword = req.body.password;
+  const plainPassword = req.body.password;  
 
   try {
     // Hash the password
     const saltRounds = 10;
-    // const hashedPassword = await bcrypt.hash(plainPassword, saltRounds);
-    const hashedPassword = plainPassword;
-
+    const hashedPassword = await bcrypt.hash(plainPassword, saltRounds);
+    
     // Insert the new user into the database
-    await query('INSERT INTO users (email, password, home, quota) VALUES (?, ?,?,102400)', [username+"@localhost", hashedPassword,("/var/mail/"+username)]);
+    await query('INSERT INTO users (email, password, home, quota) VALUES (?, ?,?,102400)', [username+"@localhost", hashedPassword,("/var/mail/localhost/"+username+"@localhost")]);
 
     res.status(200).send('Account created successfully');
   } catch (error) {
