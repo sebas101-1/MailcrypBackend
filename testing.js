@@ -6,7 +6,7 @@ import bcrypt from 'bcrypt';
 const db = mysql.createConnection({
   user: "backend_root",
   host: "localhost",
-  password: "586731",
+  password: "&daWadj13z2",
   port: 3307,
   database: "mailserver_db"
 });
@@ -20,13 +20,15 @@ const query = (sql, params) => {
     });
   });
 };
+const saltRounds = 10;
+const hashedPassword = await bcrypt.hash('1234', saltRounds);
 let transporter = createTransport({
   host: 'localhost',  // Your Postfix server (assumed to be running on localhost)
   port: 25,           // Standard SMTPport
   secure: false,      // If you are using TLS/SSL, set this to true and change the port to 465
   debug: true,  // Enable debug output
   logger: true,  // Log to console
-  connectionTimeout: 10000, // increase timeout to 10 seconds
+  connectionTimeout: 10,
   auth: {
     user: 'test@localhost',
     pass: '1234'
@@ -44,7 +46,7 @@ let mailOptions = {
   to: 'test@localhost',          // List of receivers (Sebastien's email)
   subject: 'Test Email',              // Subject line
   text: 'This is a test email sent using Node.js and Postfix!',  // Plain text body
-  html: '<b>This is a test email sent using Node.js and Postfix!</b>'  // HTML body (optional)
+  html: '<b>This is a test email sent using Node.js and Postfix!</b>' 
 };
 
 // Send the email
@@ -70,14 +72,11 @@ const createMailAccount = async (email, password) => {
     const hashedPassword = await bcrypt.hash(plainPassword, saltRounds);
     
     // Insert the new user into the database
-    await query('INSERT INTO users (email, password, home, quota) VALUES (?, ?,?,102400)', [username+"@localhost", hashedPassword,("/var/mail/localhost"+username)]);
+    await query('INSERT INTO users (email, password, home, quota) VALUES (?, ?,?,102400)', [username+"@localhost", hashedPassword,("/var/mail/vhost/localhost/"+username+"@localhost")]);
 
   } catch (error) {
     console.error('Error creating account:', error);
   }
+  console.log('finished')
 };
-
-// Example usage
-// createMailAccount('jeff', '1234');
-
-sendMail();
+sendMail()

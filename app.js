@@ -8,11 +8,11 @@ const LocalStrategy = require('passport-local').Strategy;
 
 // Update with your SQL VM database credentials
 const db = mysql.createConnection({
-  user: "backend_root",       
-  host: "localhost",  
-  port: 3307,   
-  password: "586731", // Replace with the new user password
-  database: "mailserver_db"     // Ensure this matches your database name
+  user: "backend_root",
+  host: "localhost",
+  password: "&daWadj13z2",
+  port: 3307,
+  database: "mailserver_db"
 });
 
 const app = express();
