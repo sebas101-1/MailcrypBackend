@@ -75,7 +75,7 @@ const createMailAccount = async (email, password) => {
     await query('INSERT INTO users (email, password, home, quota) VALUES (?, ?,?,102400)', [username+"@localhost", hashedPassword,("/var/mail/vhost/localhost/"+username+"@localhost")]);
 
   } catch (error) {
-    console.error('Error creating account:', error);
+    console.error('Error creaxting account:', error);
   }
   console.log('finished')
 };

@@ -16,18 +16,28 @@ const db = mysql.createConnection({
 });
 
 const app = express();
-
+const corsOptions = {
+  origin: 'http://localhost:5173', // Match this with your frontend URL
+  credentials: true, // Allows session cookies
+  methods: ['GET', 'POST', 'PUT', 'DELETE'], // Allow necessary methods
+  allowedHeaders: ['Content-Type', 'Authorization'], // Allow required headers
+  optionsSuccessStatus: 200
+};
+app.use(cors(corsOptions));
 // Middleware setup
 app.use(express.urlencoded({ extended: true }));
-app.use(cors());
 app.use(express.json());
 app.use(session({
-  secret: 'super_freaking_secret',  // Replace with a strong secret key
+  secret: 'super_freaking_secret', // Make this stronger
   resave: false,
-  saveUninitialized: true
+  saveUninitialized: false, // Change to false
+  cookie: {
+    secure: false, // Change to true if using HTTPS
+    httpOnly: true, 
+    sameSite: 'lax' 
+  }
 }));
 
-// Initialize Passport and session
 app.use(passport.initialize());
 app.use(passport.session());
 
@@ -74,6 +84,7 @@ passport.serializeUser((user, done) => {
   done(null, user.id);
 });
 
+
 // Deserialize user info from session
 passport.deserializeUser(async (id, done) => {
   try {
@@ -81,34 +92,70 @@ passport.deserializeUser(async (id, done) => {
     if (results.length === 0) {
       return done(new Error('User not found'));
     }
-    return done(null, results[0]);
+    return done(null, results[0]); // ✅ This should return the user
   } catch (error) {
     done(error);
   }
 });
+const isAuthenticated = (req, res, next) => {
+  if (req.isAuthenticated()) {
+    return next(); // User is authenticated, proceed
+  }
+  res.status(401).json({ success: false, message: 'Unauthorized access' });
+};
+app.get('/home', isAuthenticated, (req, res) => {
+  res.status(200).json({ success: true, message: 'Login successful' });
+});
+
+app.post('/logout', (req, res, next) => {
+  req.logout((err) => {
+    if (err) {
+      return res.status(500).json({ success: false, message: 'Logout failed' });
+    }
+    req.session.destroy((err) => {
+      if (err) {
+        return res.status(500).json({ success: false, message: 'Session destroy failed' });
+      }
+      res.clearCookie('connect.sid'); // Clear the session cookie
+      return res.status(200).json({ success: true, message: 'Logged out' });
+    });
+  });
+});
+
 
 // POST route for user login
 app.post('/login', (req, res, next) => {
   passport.authenticate('local', (err, user, info) => {
-    if (err) {
-      return res.status(500).json({ success: false, message: 'Server error' });
-    }
-    if (!user) {
-      return res.status(401).json({ success: false, message: 'Invalid credentials' });
-    }
-    
-    return res.status(200).json({ success: true, message: 'Login successful' });
+    if (err) return res.status(500).json({ success: false, message: 'Server error' });
+    if (!user) return res.status(401).json({ success: false, message: 'Invalid credentials' });
+
+    req.login(user, (err) => {
+      if (err) return res.status(500).json({ success: false, message: 'Login failed' });
+
+      // ✅ Manually save session
+      req.session.save((err) => {
+        if (err) return res.status(500).json({ success: false, message: 'Session save failed' });
+
+        console.log("User logged in and session saved:", user);
+        return res.status(200).json({ success: true, message: 'Login successful' });
+      });
+    });
   })(req, res, next);
 });
 
+
 // Check if user is authenticated
 app.get('/loggedIn', (req, res) => {
+  console.log("Session Data:", req.session);
+  console.log("User:", req.user);
+
   if (req.isAuthenticated()) {
-    res.status(200).send('Login successful');
+    res.status(200).json({ success: true, message: 'Login successful' });
   } else {
-    res.status(401).send('You are not authenticated');
+    res.status(401).json({ success: false, message: 'You are not authenticated' });
   }
 });
+
 
 // POST route to create a new account
 app.post('/create', async (req, res) => {
