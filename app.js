@@ -158,13 +158,16 @@ app.get('/home', isAuthenticated, (req, res) => {
 app.post('/logout', (req, res, next) => {
   req.logout((err) => {
     if (err) {
+      console.log(err);
       return res.status(500).json({ success: false, message: 'Logout failed' });
     }
     req.session.destroy((err) => {
       if (err) {
+        console.log(err)
         return res.status(500).json({ success: false, message: 'Session destroy failed' });
       }
       res.clearCookie('connect.sid'); // Clear the session cookie
+      console.log("Logged Out Worked \n ++++++++++++++++++++++++++")
       return res.status(200).json({ success: true, message: 'Logged out' });
     });
   });
