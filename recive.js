@@ -2,7 +2,7 @@ var Imap = require('imap'),
     inspect = require('util').inspect;
 
 var imap = new Imap({
-  user: 'test@localhost',
+  user: 'test',
   password: '1234',
   host: 'localhost',
   port: 143,
@@ -16,7 +16,14 @@ function openInbox(cb) {
 imap.once('ready', function() {
   openInbox(function(err, box) {
     if (err) throw err;
-    var f = imap.seq.fetch('1:3', {
+    console.log('Total messages:', box.messages.total);
+    if (box.messages.total === 0) {
+        console.log('No messages in INBOX.');
+        imap.end();
+        return;
+      }
+    var range = '1:' + box.messages.total; // Fetch all messages
+    var f = imap.seq.fetch(range, {
       bodies: 'HEADER.FIELDS (FROM TO SUBJECT DATE)',
       struct: true
     });

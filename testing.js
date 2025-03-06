@@ -72,11 +72,12 @@ const createMailAccount = async (email, password) => {
     const hashedPassword = await bcrypt.hash(plainPassword, saltRounds);
     
     // Insert the new user into the database
-    await query('INSERT INTO users (email, password, home, quota) VALUES (?, ?,?,102400)', [username+"@localhost", hashedPassword,("/var/mail/vhost/localhost/"+username+"@localhost")]);
+    await query('INSERT INTO users (email, password, home, quota) VALUES (?, ?,?,102400)', [username, hashedPassword,("/var/mail/vhost/localhost/"+username)]);
 
   } catch (error) {
     console.error('Error creaxting account:', error);
   }
   console.log('finished')
 };
+// createMailAccount("test","1234")
 sendMail()
