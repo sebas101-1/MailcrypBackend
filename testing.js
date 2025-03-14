@@ -30,7 +30,7 @@ let transporter = createTransport({
   logger: true,  // Log to console
   connectionTimeout: 10,
   auth: {
-    user: 'test@localhost',
+    user: 'test',
     pass: '1234'
   },
   tls: {
@@ -80,4 +80,5 @@ const createMailAccount = async (email, password) => {
   console.log('finished')
 };
 // createMailAccount("test","1234")
+console.log("System is running")
 sendMail()
