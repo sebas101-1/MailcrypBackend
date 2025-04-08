@@ -1,84 +1,67 @@
 import { createTransport } from 'nodemailer';
-import { hash } from 'bcrypt';
-import mysql from 'mysql2';
-import bcrypt from 'bcrypt';
-// Create a transporter object using SMTP transport
-const db = mysql.createConnection({
+import mysql from 'mysql2/promise';
+import { execSync } from 'child_process';
+
+const dbConfig = {
+  host: "localhost", // Use your Linux VM's IP
   user: "backend_root",
-  host: "localhost",
   password: "&daWadj13z2",
-  port: 3307,
-  database: "mailserver_db"
-});
-const query = (sql, params) => {
-  return new Promise((resolve, reject) => {
-    db.query(sql, params, (error, results) => {
-      if (error) {
-        return reject(error);
-      }
-      resolve(results);
-    });
-  });
-};
-const saltRounds = 10;
-const hashedPassword = await bcrypt.hash('1234', saltRounds);
-let transporter = createTransport({
-  host: 'localhost',  // Your Postfix server (assumed to be running on localhost)
-  port: 25,           // Standard SMTPport
-  secure: false,      // If you are using TLS/SSL, set this to true and change the port to 465
-  debug: true,  // Enable debug output
-  logger: true,  // Log to console
-  connectionTimeout: 10,
-  auth: {
-    user: 'test',
-    pass: '1234'
-  },
-  tls: {
-    rejectUnauthorized: false, // Allow self-signed certificates
-  },
-  logger: true, // Enables logging to the console
-  debug: true,  // Includes debug information
-});
-
-// Set up the email options
-let mailOptions = {
-  from: '"Sebastien " <test@localhost>',  // Sender address
-  to: 'test@localhost',          // List of receivers (Sebastien's email)
-  subject: 'Test Email',              // Subject line
-  text: 'This is a test email sent using Node.js and Postfix!',  // Plain text body
-  html: '<b>This is a test email sent using Node.js and Postfix!</b>' 
+  database: "mailserver_db",
+  port: 3306,
+  waitForConnections: true,
+  connectionLimit: 10,
+  ssl: {
+    rejectUnauthorized: false
+  }
 };
 
-// Send the email
-const sendMail = async () =>{
-  transporter.sendMail(mailOptions, (error, info) => {
-    if (error) {
-      return console.log('Error ' + error.message);
-    }
-    console.log('Message sent: %s', info.messageId);
-  });
+// Create connection pool
+const pool = mysql.createPool(dbConfig);
+
+// Test database connection
+async function testConnection() {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    console.log('Connected to database!');
+    const [rows] = await conn.query('SELECT 1 + 1 AS solution');
+    console.log('Database test result:', rows[0].solution);
+  } catch (err) {
+    console.error('Database connection failed:', err);
+  } finally {
+    if (conn) conn.release();
+  }
 }
 
-
-// Function to create a new mail account
-const createMailAccount = async (email, password) => {
-  const username = email;
-  const plainPassword = password;
-  console.log("Creating Account")
+// Modified sendMail function
+async function sendMail() {
+  await testConnection(); // Test DB first
+  
+  const transporter = createTransport({
+    host: '192.168.56.1', // Your Linux VM's IP
+    port: 25,
+    secure: false,
+    auth: {
+      user: 'test@example.test',
+      pass: '1234'
+    },
+    tls: { rejectUnauthorized: false }
+  });
 
   try {
-    // Hash the password
-    const saltRounds = 10;
-    const hashedPassword = await bcrypt.hash(plainPassword, saltRounds);
-    
-    // Insert the new user into the database
-    await query('INSERT INTO users (email, password, home, quota) VALUES (?, ?,?,102400)', [username, hashedPassword,("/var/mail/vhost/localhost/"+username)]);
-
-  } catch (error) {
-    console.error('Error creaxting account:', error);
+    const info = await transporter.sendMail({
+      from: '"Test" <test@example.test>',
+      to: 'test@example.test',
+      subject: 'Test',
+      text: 'Test email'
+    });
+    console.log('Email sent:', info.messageId);
+  } catch (err) {
+    console.error('Email send failed:', err);
   }
-  console.log('finished')
-};
-// createMailAccount("test","1234")
-console.log("System is running")
+}
+
+// Run the script
+console.log('Starting...');
 sendMail()
+  .finally(() => pool.end());

@@ -16,7 +16,7 @@
     "express": "^4.21.0",
     "express-mysql-session": "^3.0.3",
     "express-session": "^1.18.1",
-    "imap-simple": "^5.1.0",
+    "imap-simple": "^1.6.3",
     "mailparser": "^3.7.1",
     "mysql": "^2.18.1",
     "mysql2": "^3.11.3",
