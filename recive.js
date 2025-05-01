@@ -1,67 +1,92 @@
-var Imap = require('imap'),
-    inspect = require('util').inspect;
+const Imap = require('imap');
+const { simpleParser } = require('mailparser');
+require('dotenv').config(); // For environment variables
 
-var imap = new Imap({
-  user: 'test',
-  password: '1234',
-  host: 'localhost',
-  port: 143,
-  tls: false
-});
+const imapConfig = {
+  user: process.env.EMAIL_USER,
+  password: process.env.EMAIL_PASSWORD,
+  host: process.env.IMAP_HOST,
+  port: process.env.IMAP_PORT,
+  tls: {
+    rejectUnauthorized: false
+  },
+  tlsOptions: { servername: process.env.IMAP_HOST}
+};
+
+const imap = new Imap(imapConfig);
 
 function openInbox(cb) {
   imap.openBox('INBOX', true, cb);
 }
 
-imap.once('ready', function() {
-  openInbox(function(err, box) {
+imap.once('ready', () => {
+  openInbox((err, box) => {
     if (err) throw err;
-    console.log('Total messages:', box.messages.total);
-    if (box.messages.total === 0) {
-        console.log('No messages in INBOX.');
-        imap.end();
-        return;
+
+    // Search for unseen emails in the last 24 hours
+    const since = new Date();
+    since.setDate(since.getDate() - 1);
+    
+    imap.search([
+      ['UNSEEN'],
+      ['SINCE', since.toISOString().split('T')[0]]
+    ], (err, results) => {
+      if (err) throw err;
+
+      if (results.length === 0) {
+        console.log('No new emails');
+        return imap.end();
       }
-    var range = '1:' + box.messages.total; // Fetch all messages
-    var f = imap.seq.fetch(range, {
-      bodies: 'HEADER.FIELDS (FROM TO SUBJECT DATE)',
-      struct: true
-    });
-    f.on('message', function(msg, seqno) {
-      console.log('Message #%d', seqno);
-      var prefix = '(#' + seqno + ') ';
-      msg.on('body', function(stream, info) {
-        var buffer = '';
-        stream.on('data', function(chunk) {
-          buffer += chunk.toString('utf8');
+
+      const fetch = imap.fetch(results, { 
+        bodies: '',
+        markSeen: false // Set to true to mark emails as read
+      });
+
+      fetch.on('message', (msg) => {
+        let email = {};
+
+        msg.on('body', (stream) => {
+          simpleParser(stream, (err, parsed) => {
+            if (err) throw err;
+
+            email = {
+              subject: parsed.subject,
+              from: parsed.from.value[0].address,
+              date: parsed.date,
+              text: parsed.text,
+              html: parsed.html
+            };
+          });
         });
-        stream.once('end', function() {
-          console.log(prefix + 'Parsed header: %s', inspect(Imap.parseHeader(buffer)));
+
+        msg.once('end', () => {
+          console.log('--------------------------------------------------');
+          console.log('Subject:', email.subject);
+          console.log('From:', email.from);
+          console.log('Date:', email.date);
+          console.log('Text:', email.text?.substring(0, 100) + '...');
         });
       });
-      msg.once('attributes', function(attrs) {
-        console.log(prefix + 'Attributes: %s', inspect(attrs, false, 8));
+
+      fetch.once('error', (err) => {
+        console.log('Fetch error:', err);
       });
-      msg.once('end', function() {
-        console.log(prefix + 'Finished');
+
+      fetch.once('end', () => {
+        imap.end();
       });
-    });
-    f.once('error', function(err) {
-      console.log('Fetch error: ' + err);
-    });
-    f.once('end', function() {
-      console.log('Done fetching all messages!');
-      imap.end();
     });
   });
 });
 
-imap.once('error', function(err) {
-  console.log(err);
+imap.once('error', (err) => {
+  console.log('IMAP error:', err);
 });
 
-imap.once('end', function() {
+imap.once('end', () => {
   console.log('Connection ended');
 });
 
+// Connect to IMAP server
 imap.connect();
