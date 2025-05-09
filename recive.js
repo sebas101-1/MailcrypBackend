@@ -1,92 +1,81 @@
-const Imap = require('imap');
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 const { simpleParser } = require('mailparser');
-require('dotenv').config(); // For environment variables
+require('dotenv').config();
+const ImapClient = require('emailjs-imap-client').default;
 
-const imapConfig = {
-  user: process.env.EMAIL_USER,
-  password: process.env.EMAIL_PASSWORD,
-  host: process.env.IMAP_HOST,
-  port: process.env.IMAP_PORT,
-  tls: {
-    rejectUnauthorized: false
-  },
-  tlsOptions: { servername: process.env.IMAP_HOST}
-};
+const client = new ImapClient(
+  process.env.IMAP_HOST,
+  parseInt(process.env.IMAP_PORT) || 993,
+  {
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASSWORD
+    },
+    logLevel: 'debug',
+    useSecureTransport: true,
+    ignoreTLS: false,
+    requireTLS: true,
+    tlsOptions: {
+      rejectUnauthorized: false,
+      servername: process.env.IMAP_HOST // Use the actual hostname instead of hardcoding 'localhost'
+    },
+    connectionTimeout: 30000, // 30 seconds timeout
+    socketTimeout: 60000     // 60 seconds timeout
+  }
+);
 
-const imap = new Imap(imapConfig);
+async function checkEmails() {
+  try {
+    console.log('Connecting to IMAP server...');
+    console.log(`Host: ${process.env.IMAP_HOST}`);
+    console.log(`Port: ${process.env.IMAP_PORT}`);
+    
+    await client.connect();
+    console.log('Successfully connected to IMAP server');
 
-function openInbox(cb) {
-  imap.openBox('INBOX', true, cb);
+    const mailbox = await client.selectMailbox('INBOX');
+    console.log(`INBOX contains ${mailbox.exists} messages`);
+
+    // Modified search command - removed useUid option
+    const messages = await client.search(['ALL']);const messages = await client.search(['ALL']);
+    
+    if (messages.length === 0) {
+      console.log('No emails found');.log('No emails found');
+      return; return;
+    }    }
+
+    console.log(`Found ${messages.length} emails`);    console.log(`Found ${messages.length} emails`);
+
+    const recentMessages = messages.slice(-5);
+    
+    for (const uid of recentMessages) {
+      try {
+        // Modified fetch command
+        const msgData = await client.fetchMessage(uid.toString(), { }, '[RFC822]');g(), { }, '[RFC822]');
+        const parsed = await simpleParser(msgData['RFC822']);const parsed = await simpleParser(msgData['RFC822']);
+        
+        console.log('\n----------------------------------------');-------------');
+        console.log(`From: ${parsed.from?.text}`);
+        console.log(`Date: ${parsed.date}`);
+      } catch (msgError) {
+        console.error(`Error processing message ${uid}:`, msgError);
+      }
+    }
+  } catch (error) {
+    console.error('IMAP Error:', error);
+    throw error; // Re-throw to handle in the finally block
+  } finally {
+    try {
+      await client.close();
+      console.log('Connection closed properly');
+    } catch (closeError) {
+      console.error('Error while closing connection:', closeError);
+    }
+  }
 }
 
-imap.once('ready', () => {
-  openInbox((err, box) => {
-    if (err) throw err;
-
-    // Search for unseen emails in the last 24 hours
-    const since = new Date();
-    since.setDate(since.getDate() - 1);
-    
-    imap.search([
-      ['UNSEEN'],
-      ['SINCE', since.toISOString().split('T')[0]]
-    ], (err, results) => {
-      if (err) throw err;
-
-      if (results.length === 0) {
-        console.log('No new emails');
-        return imap.end();
-      }
-
-      const fetch = imap.fetch(results, { 
-        bodies: '',
-        markSeen: false // Set to true to mark emails as read
-      });
-
-      fetch.on('message', (msg) => {
-        let email = {};
-
-        msg.on('body', (stream) => {
-          simpleParser(stream, (err, parsed) => {
-            if (err) throw err;
-
-            email = {
-              subject: parsed.subject,
-              from: parsed.from.value[0].address,
-              date: parsed.date,
-              text: parsed.text,
-              html: parsed.html
-            };
-          });
-        });
-
-        msg.once('end', () => {
-          console.log('--------------------------------------------------');
-          console.log('Subject:', email.subject);
-          console.log('From:', email.from);
-          console.log('Date:', email.date);
-          console.log('Text:', email.text?.substring(0, 100) + '...');
-        });
-      });
-
-      fetch.once('error', (err) => {
-        console.log('Fetch error:', err);
-      });
-
-      fetch.once('end', () => {
-        imap.end();
-      });
-    });
-  });
+// Run the email check with better error handling
+checkEmails().catch(error => {
+  console.error('Fatal error:', error);
+  process.exit(1);
 });
-
-imap.once('error', (err) => {
-  console.log('IMAP error:', err);
-});
-
-imap.once('end', () => {
-  console.log('Connection ended');
-});
-
-// Connect to IMAP server
-imap.connect();
