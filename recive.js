@@ -2,7 +2,28 @@ process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 const { simpleParser } = require('mailparser');
 require('dotenv').config();
 const ImapClient = require('emailjs-imap-client').default;
-
+function getClient(email_user, email_password) {
+  return new ImapClient(
+    process.env.IMAP_HOST,
+    parseInt(process.env.IMAP_PORT) || 993,
+    {
+      auth: {
+        user: email_user,
+        pass: email_password
+      },
+      logLevel: 'debug',
+      useSecureTransport: true,
+      ignoreTLS: false,
+      requireTLS: true,
+      tlsOptions: {
+        rejectUnauthorized: false,
+        servername: process.env.IMAP_HOST
+      },
+      connectionTimeout: 30000,
+      socketTimeout: 60000
+    }
+  );
+}
 const client = new ImapClient(
   process.env.IMAP_HOST,
   parseInt(process.env.IMAP_PORT) || 993,
@@ -17,14 +38,15 @@ const client = new ImapClient(
     requireTLS: true,
     tlsOptions: {
       rejectUnauthorized: false,
-      servername: process.env.IMAP_HOST // Use the actual hostname instead of hardcoding 'localhost'
+      servername: process.env.IMAP_HOST
     },
-    connectionTimeout: 30000, // 30 seconds timeout
-    socketTimeout: 60000     // 60 seconds timeout
+    connectionTimeout: 30000,
+    socketTimeout: 60000
   }
 );
-
-async function checkEmails() {
+export default async function checkEmails(email_user, email_password) {
+  let parsedMessages = [];
+  const client = getClient(email_user, email_password);
   try {
     console.log('Connecting to IMAP server...');
     console.log(`Host: ${process.env.IMAP_HOST}`);
@@ -36,34 +58,47 @@ async function checkEmails() {
     const mailbox = await client.selectMailbox('INBOX');
     console.log(`INBOX contains ${mailbox.exists} messages`);
 
-    // Modified search command - removed useUid option
-    const messages = await client.search(['ALL']);const messages = await client.search(['ALL']);
+    // Fixed search command with proper criteria
+    const messages = await client.search('INBOX', {unseen: true}, {byUid: true});
     
     if (messages.length === 0) {
-      console.log('No emails found');.log('No emails found');
-      return; return;
-    }    }
+      console.log('No emails found');
+      return;
+    }
 
-    console.log(`Found ${messages.length} emails`);    console.log(`Found ${messages.length} emails`);
+    console.log(`Found ${messages.length} emails`);
 
     const recentMessages = messages.slice(-5);
-    
-    for (const uid of recentMessages) {
+    for (const messageId of recentMessages) {
       try {
-        // Modified fetch command
-        const msgData = await client.fetchMessage(uid.toString(), { }, '[RFC822]');g(), { }, '[RFC822]');
-        const parsed = await simpleParser(msgData['RFC822']);const parsed = await simpleParser(msgData['RFC822']);
-        
-        console.log('\n----------------------------------------');-------------');
+        // Fetch the full message data
+        console.log("Fetching message with ID:", messageId);
+        const message = await client.listMessages('INBOX', '1:10', ['uid', 'flags', 'body[]']);
+        // Parse the message content
+        const parsed = await simpleParser(message[0]['body[]']);
+
+        // Display message details
+        console.log('\n----------------------------------------');
         console.log(`From: ${parsed.from?.text}`);
+        console.log(`Subject: ${parsed.subject}`);
         console.log(`Date: ${parsed.date}`);
+        console.log('Body:', parsed.text);
+        
+        // If there are attachments, list them
+        if (parsed.attachments.length > 0) {
+          console.log('\nAttachments:');
+          parsed.attachments.forEach(attachment => {
+            console.log(`- ${attachment.filename} (${attachment.contentType})`);
+          });
+        }
+        parsedMessages.push(parsed);
       } catch (msgError) {
-        console.error(`Error processing message ${uid}:`, msgError);
+        console.error(`Error fetching message ${messageId}:`, msgError);
       }
     }
   } catch (error) {
     console.error('IMAP Error:', error);
-    throw error; // Re-throw to handle in the finally block
+    throw error;
   } finally {
     try {
       await client.close();
@@ -75,7 +110,10 @@ async function checkEmails() {
 }
 
 // Run the email check with better error handling
-checkEmails().catch(error => {
-  console.error('Fatal error:', error);
-  process.exit(1);
-});
+checkEmails(process.env.EMAIL_USER, process.env.EMAIL_PASSWORD)
+  .then(() => {
+    console.log('Email check completed successfully');
+  })
+  .catch((error) => {
+    console.error('Error during email check:', error);
+  });

@@ -6,6 +6,7 @@ const session = require('express-session');
 const passport = require('passport');
 const LocalStrategy = require('passport-local').Strategy;
 const GoogleStrategy = require('passport-google-oidc');
+import checkEmails from './recive.js';
 // Update with your SQL VM database credentials
 const db = mysql.createConnection({
   user: "backend_root",
@@ -240,4 +241,7 @@ app.post('/create', async (req, res) => {
 // Start the server
 app.listen(3000, () => {
   console.log("Server running on port 3000");
+  checkEmails(process.env.EMAIL_USER, process.env.EMAIL_PASSWORD)
+    .then(() => console.log("Email check completed"))
+    .catch(err => console.error("Error checking emails:", err));
 });
