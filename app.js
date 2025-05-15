@@ -6,13 +6,13 @@ const session = require('express-session');
 const passport = require('passport');
 const LocalStrategy = require('passport-local').Strategy;
 const GoogleStrategy = require('passport-google-oidc');
-import checkEmails from './recive.js';
+const checkEmails = require('./recive.js');
 // Update with your SQL VM database credentials
 const db = mysql.createConnection({
   user: "backend_root",
   host: "localhost",
   password: "&daWadj13z2",
-  port: 3307,
+  port: 3306,
   database: "mailserver_db"
 });
 
@@ -75,7 +75,7 @@ const query = (sql, params) => {
 passport.use(new LocalStrategy(async (username, password, done) => {
   try {
     // Fetch user from database (note await here)
-    const results = await query('SELECT id, email, password FROM users WHERE email = ?', [username + "@localhost"]);
+    const results = await query('SELECT id, email, password FROM virtual_users WHERE email = ?', [username + "@example.test"]);
     
     if (results.length === 0) {
       console.log("User not found");
@@ -97,33 +97,7 @@ passport.use(new LocalStrategy(async (username, password, done) => {
     return done(error);
   }
 }));
-// Passport Local Strategy for authentication
-// passport.use(new LocalStrategy(async (username, password, done) => {
-//   try {
-//     // Fetch the user based on the username
-//     const results = await query('SELECT id, email, password FROM users WHERE email = ?', [username+"@localhost"]);
-    
-//     if (results.length === 0) {
-//       console.log("User not found");
-//       return done(null, false, { message: 'User not found' });
-//     }
 
-//     const user = results[0];
-//     // Compare hashed passwords
-//     const isMatch = await bcrypt.compare(password, user.password);
-//     if (isMatch) {
-//       return done(null, user);  // Success: pass user data to next step
-//     } else {
-//       console.log("invalid credentials")
-//       return done(null, false, { message: 'Invalid credentials' });
-//     }
-//   } catch (error) {
-//     return done(error);
-//   }
-// }));
-
-// Serialize user info into session
-// Serialization
 passport.serializeUser((user, done) => {
   console.log('📩 Serializing user:', user.id);
   done(null, user.id);
@@ -133,7 +107,7 @@ passport.serializeUser((user, done) => {
 passport.deserializeUser(async (id, done) => {
   console.log('📥 Deserializing user ID:', id);
   try {
-    const results = await query('SELECT id, email FROM users WHERE id = ?', [id]);
+    const results = await query('SELECT id, email FROM virtual_users WHERE id = ?', [id]);
     if (!results.length) {
       console.error('🚫 User not found for ID:', id);
       return done(null, false);
@@ -185,7 +159,7 @@ app.post('/login', (req, res, next) => {
       
       // Fetch fresh user data for session
       try {
-        const [freshUser] = await query('SELECT id, email FROM users WHERE id = ?', [user.id]);
+        const [freshUser] = await query('SELECT id, email FROM virtual_users WHERE id = ?', [user.id]);
         console.log('🔐 Session payload:', freshUser);
         res.status(200).json({ 
           success: true, 
@@ -218,7 +192,7 @@ app.post('/create', async (req, res) => {
 
   try {
     // Check for existing user
-    const existing = await query('SELECT id FROM users WHERE email = ?', [username + "@localhost"]);
+    const existing = await query('SELECT id FROM virtual_users WHERE email = ?', [username + "@example.test"]);
     if (existing.length > 0) {
       return res.status(400).json({ error: 'Username already exists' });
     }
@@ -228,8 +202,8 @@ app.post('/create', async (req, res) => {
     
     // Create user
     await query(
-      'INSERT INTO users (email, password, home, quota) VALUES (?, ?, ?, 102400)',
-      [username + "@localhost", hashedPassword, `/var/mail/vhost/localhost/${username}@localhost`]
+      'INSERT INTO virtual_users (email, password, domain_id) VALUES (?, ?,1)',
+      [username + "@example.test", hashedPassword, `/var/mail/vhost/localhost/${username}@localhost`]
     );
 
     res.status(201).json({ success: true, message: 'Account created' });
@@ -241,7 +215,11 @@ app.post('/create', async (req, res) => {
 // Start the server
 app.listen(3000, () => {
   console.log("Server running on port 3000");
-  checkEmails(process.env.EMAIL_USER, process.env.EMAIL_PASSWORD)
-    .then(() => console.log("Email check completed"))
-    .catch(err => console.error("Error checking emails:", err));
 });
+checkEmails(process.env.EMAIL_USER, process.env.EMAIL_PASSWORD)
+  .then(() => {
+    console.log('Email check completed successfully');
+  })
+  .catch((error) => {
+    console.error('Error during email check:', error);
+  });

@@ -44,7 +44,7 @@ const client = new ImapClient(
     socketTimeout: 60000
   }
 );
-export default async function checkEmails(email_user, email_password) {
+async function checkEmails(email_user, email_password) {
   let parsedMessages = [];
   const client = getClient(email_user, email_password);
   try {
@@ -108,12 +108,11 @@ export default async function checkEmails(email_user, email_password) {
     }
   }
 }
-
-// Run the email check with better error handling
-checkEmails(process.env.EMAIL_USER, process.env.EMAIL_PASSWORD)
-  .then(() => {
-    console.log('Email check completed successfully');
-  })
-  .catch((error) => {
-    console.error('Error during email check:', error);
-  });
+module.exports = checkEmails;
+// checkEmails(process.env.EMAIL_USER, process.env.EMAIL_PASSWORD)
+//   .then(() => {
+//     console.log('Email check completed successfully');
+//   })
+//   .catch((error) => {
+//     console.error('Error during email check:', error);
+//   });ss
