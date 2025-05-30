@@ -1,12 +1,15 @@
 const express = require('express');
 const mysql = require('mysql2');
 const cors = require('cors');
-const bcrypt = require('bcrypt');
 const session = require('express-session');
 const passport = require('passport');
 const LocalStrategy = require('passport-local').Strategy;
 const GoogleStrategy = require('passport-google-oidc');
 const checkEmails = require('./recive.js');
+const bcrypt = require('bcrypt');
+const sendEmail = require('./send.js');
+let UsersUsername;
+let UsersPassword;
 // Update with your SQL VM database credentials
 const db = mysql.createConnection({
   user: "backend_root",
@@ -26,12 +29,20 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 // Middleware setup
+function generateDovecotHash(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.createHash('sha512')
+    .update(password + salt)
+    .digest('hex');
+  return `{SHA512-CRYPT}$6$${salt}$${hash}`;
+}
+
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 const MySQLStore = require('express-mysql-session')(session);
 const sessionStore = new MySQLStore({
   host: 'localhost',
-  port: 3307,
+  port: 3306,
   user: 'backend_root',
   password: '&daWadj13z2',
   database: 'mailserver_db'
@@ -54,7 +65,7 @@ app.use((req, res, next) => {
   console.log('Session ID:', req.sessionID);
   console.log('Session data:', req.session);
   console.log('Authenticated user:', req.user);
-  console.log('=====================\n');
+  // console.log('=====================\n');
   next();
 });
 app.use(passport.initialize());
@@ -75,29 +86,43 @@ const query = (sql, params) => {
 passport.use(new LocalStrategy(async (username, password, done) => {
   try {
     // Fetch user from database (note await here)
-    const results = await query('SELECT id, email, password FROM virtual_users WHERE email = ?', [username + "@example.test"]);
     
+    const results = await query('SELECT id, email, password FROM virtual_users WHERE email = ?', [username + "@example.test"]);
     if (results.length === 0) {
       console.log("User not found");
       return done(null, false, { message: 'Invalid credentials' }); // Generic message for security
     }
 
     const user = results[0];
-    
-    // Compare passwords (note await here)
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (isMatch) {
-      return done(null, user); // Successful login
-    } else {
-      console.log("Invalid password");
-      return done(null, false, { message: 'Invalid credentials' });
-    }
-  } catch (error) {
-    console.error("Authentication error:", error);
-    return done(error);
-  }
-}));
 
+
+
+    // Compare passwords (note await here)
+
+    const isMatch = await bcrypt.compare(password, user.password);
+
+    if (isMatch) {
+      UsersUsername = user.email;
+      UsersPassword = password;
+      return done(null, user); // Successful login
+
+    } else {
+
+      console.log("Invalid password");
+
+      return done(null, false, { message: 'Invalid credentials' });
+
+    }
+
+  } catch (error) {
+
+    console.error("Authentication error:", error);
+
+    return done(error);
+
+  }
+
+}));
 passport.serializeUser((user, done) => {
   console.log('📩 Serializing user:', user.id);
   done(null, user.id);
@@ -184,7 +209,45 @@ app.get('/loggedIn', (req, res) => {
   }
 });
 
+app.get('/getEmails', isAuthenticated, async (req, res) => {
+  const email_user = UsersUsername;
+  const email_password = UsersPassword;
 
+  try {
+    console.log('Checking emails for:', email_user);
+    const emails = await checkEmails(email_user, email_password);
+    res.status(200).json({ 
+      success: true, 
+      message: 'Email check completed',
+      emails: emails
+    });
+  } catch (error) {
+    console.error('Error during email check:', error);
+    res.status(500).json({ success: false, message: 'Error checking emails' });
+  }
+});
+
+app.get('/sendEmail',isAuthenticated, async (req, res) => {
+  const email_user = UsersUsername;
+  const email_password = UsersPassword;
+  try{
+    const email = req.query.email;
+    console.log("Sending Email")
+    const status = sendEmail(
+      email_user,
+      email.to,
+      email.subject,
+      email.text,
+      email.textAsHtml,
+      email.attachments || []
+    )
+    res.status(500).json({ success: status, message: 'Email Sent!' });
+  }
+  catch{
+    console.error('Error during email sending:', error);
+    res.status(500).json({ success: false, message: 'Error sending email' });
+  }
+});
 // POST route to create a new account
 app.post('/create', async (req, res) => {
   const username = req.body.username;
@@ -198,7 +261,9 @@ app.post('/create', async (req, res) => {
     }
 
     // Hash password
-    const hashedPassword = await bcrypt.hash(plainPassword, 10);
+
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(plainPassword, saltRounds);
     
     // Create user
     await query(
@@ -216,10 +281,3 @@ app.post('/create', async (req, res) => {
 app.listen(3000, () => {
   console.log("Server running on port 3000");
 });
-checkEmails(process.env.EMAIL_USER, process.env.EMAIL_PASSWORD)
-  .then(() => {
-    console.log('Email check completed successfully');
-  })
-  .catch((error) => {
-    console.error('Error during email check:', error);
-  });

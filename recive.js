@@ -1,4 +1,5 @@
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+const { parse } = require('dotenv');
 const { simpleParser } = require('mailparser');
 require('dotenv').config();
 const ImapClient = require('emailjs-imap-client').default;
@@ -59,7 +60,7 @@ async function checkEmails(email_user, email_password) {
     console.log(`INBOX contains ${mailbox.exists} messages`);
 
     // Fixed search command with proper criteria
-    const messages = await client.search('INBOX', {unseen: true}, {byUid: true});
+    const messages = await client.search('INBOX', {all: true}, {byUid: true})
     
     if (messages.length === 0) {
       console.log('No emails found');
@@ -69,20 +70,25 @@ async function checkEmails(email_user, email_password) {
     console.log(`Found ${messages.length} emails`);
 
     const recentMessages = messages.slice(-5);
-    for (const messageId of recentMessages) {
+    const message = await client.listMessages('INBOX', '1:*', ['uid', 'flags', 'body[]']);
+    for (let i =0; i < messages.length; i++) {
       try {
         // Fetch the full message data
-        console.log("Fetching message with ID:", messageId);
-        const message = await client.listMessages('INBOX', '1:10', ['uid', 'flags', 'body[]']);
+        console.log("Fetching message with ID:", recentMessages[i]);
+        
+        console.log(`Fetched message with ID: ${recentMessages[i]}`);
         // Parse the message content
-        const parsed = await simpleParser(message[0]['body[]']);
+        const parsed = await simpleParser(message[i]['body[]']);
 
         // Display message details
-        console.log('\n----------------------------------------');
-        console.log(`From: ${parsed.from?.text}`);
-        console.log(`Subject: ${parsed.subject}`);
-        console.log(`Date: ${parsed.date}`);
-        console.log('Body:', parsed.text);
+        // console.log('\n----------------------------------------');
+        // console.log(`From: ${parsed.from?.text}`);
+        // console.log(`Subject: ${parsed.subject}`);
+        // console.log(`Date: ${parsed.date}`);
+        // console.log('Body:', parsed.text);
+        // console.log('HTML Body:', parsed.textAsHtml);
+        // console.log('\n----------------------------------------');
+        // console.log(parsed);
         
         // If there are attachments, list them
         if (parsed.attachments.length > 0) {
@@ -92,6 +98,7 @@ async function checkEmails(email_user, email_password) {
           });
         }
         parsedMessages.push(parsed);
+        // console.log('Parsed message:', parsedMessages);
       } catch (msgError) {
         console.error(`Error fetching message ${messageId}:`, msgError);
       }
@@ -103,6 +110,7 @@ async function checkEmails(email_user, email_password) {
     try {
       await client.close();
       console.log('Connection closed properly');
+      return parsedMessages;
     } catch (closeError) {
       console.error('Error while closing connection:', closeError);
     }
@@ -110,9 +118,9 @@ async function checkEmails(email_user, email_password) {
 }
 module.exports = checkEmails;
 // checkEmails(process.env.EMAIL_USER, process.env.EMAIL_PASSWORD)
-//   .then(() => {
-//     console.log('Email check completed successfully');
-//   })
-//   .catch((error) => {
-//     console.error('Error during email check:', error);
-//   });ss
+  // .then(() => {
+  //   console.log('Email check completed successfully');
+  // })
+  // .catch((error) => {
+  //   console.error('Error during email check:', error);
+  // });
