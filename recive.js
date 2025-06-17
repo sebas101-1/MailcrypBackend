@@ -49,15 +49,15 @@ async function checkEmails(email_user, email_password) {
   let parsedMessages = [];
   const client = getClient(email_user, email_password);
   try {
-    console.log('Connecting to IMAP server...');
-    console.log(`Host: ${process.env.IMAP_HOST}`);
-    console.log(`Port: ${process.env.IMAP_PORT}`);
+    // console.log('Connecting to IMAP server...');
+    // console.log(`Host: ${process.env.IMAP_HOST}`);
+    // console.log(`Port: ${process.env.IMAP_PORT}`);
     
     await client.connect();
-    console.log('Successfully connected to IMAP server');
+    // console.log('Successfully connected to IMAP server');
 
     const mailbox = await client.selectMailbox('INBOX');
-    console.log(`INBOX contains ${mailbox.exists} messages`);
+    // console.log(`INBOX contains ${mailbox.exists} messages`);
 
     // Fixed search command with proper criteria
     const messages = await client.search('INBOX', {all: true}, {byUid: true})
@@ -74,9 +74,9 @@ async function checkEmails(email_user, email_password) {
     for (let i =0; i < messages.length; i++) {
       try {
         // Fetch the full message data
-        console.log("Fetching message with ID:", recentMessages[i]);
+        // console.log("Fetching message with ID:", recentMessages[i]);
         
-        console.log(`Fetched message with ID: ${recentMessages[i]}`);
+        // console.log(`Fetched message with ID: ${recentMessages[i]}`);
         // Parse the message content
         const parsed = await simpleParser(message[i]['body[]']);
 
@@ -117,7 +117,7 @@ async function checkEmails(email_user, email_password) {
   }
 }
 module.exports = checkEmails;
-// checkEmails(process.env.EMAIL_USER, process.env.EMAIL_PASSWORD)
+checkEmails(process.env.EMAIL_USER, process.env.EMAIL_PASSWORD)
   // .then(() => {
   //   console.log('Email check completed successfully');
   // })

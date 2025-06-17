@@ -31,15 +31,18 @@ const createTransporter = () => {
 
 // Email sending endpoint
 async function sendEmail(sender, to, subject, text, html, attachments) {
+  console.log('Preparing to send email...');
   try {
     if (!to || !subject || (!text && !html)) {
       console.log('Missing required fields: to, subject, text or html');
     }
+    console.log(`Text: ${text}`);
+    console.log(`HTML: ${html}`);
 
     const transporter = createTransporter();
     
     const mailOptions = {
-      from:sender,
+      sender,
       to: Array.isArray(to) ? to.join(', ') : to,
       subject,
       text,
@@ -57,4 +60,4 @@ async function sendEmail(sender, to, subject, text, html, attachments) {
   }
 };
 module.exports = sendEmail;
-// sendEmail(process.env.EMAIL_USER,process.env.EMAIL_USER, 'Test Subject', 'This is a test email', '<b>This is a test email</b>', [])
+//sendEmail(process.env.EMAIL_USER,process.env.EMAIL_USER, 'Test Subject', 'This is a test email from send.js', '<b>This is a test email</b>', [])

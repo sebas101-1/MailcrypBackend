@@ -61,10 +61,10 @@ app.use(session({
   }
 }));
 app.use((req, res, next) => {
-  console.log('\n=== Session Debug ===');
-  console.log('Session ID:', req.sessionID);
-  console.log('Session data:', req.session);
-  console.log('Authenticated user:', req.user);
+  // console.log('\n=== Session Debug ===');
+  // console.log('Session ID:', req.sessionID);
+  // console.log('Session data:', req.session);
+  // console.log('Authenticated user:', req.user);
   // console.log('=====================\n');
   next();
 });
@@ -168,6 +168,7 @@ app.post('/logout', (req, res, next) => {
       }
       res.clearCookie('connect.sid'); // Clear the session cookie
       console.log("Logged Out Worked \n ++++++++++++++++++++++++++")
+      UsersUsername = null;
       return res.status(200).json({ success: true, message: 'Logged out' });
     });
   });
@@ -227,25 +228,49 @@ app.get('/getEmails', isAuthenticated, async (req, res) => {
   }
 });
 
-app.get('/sendEmail',isAuthenticated, async (req, res) => {
-  const email_user = UsersUsername;
-  const email_password = UsersPassword;
-  try{
-    const email = req.query.email;
-    console.log("Sending Email")
-    const status = sendEmail(
-      email_user,
+app.post('/sendEmail', isAuthenticated, async (req, res) => {
+  try {
+    // Extract the email object from request body
+    const email = req.body.email;
+    console.log("Received Email Object:", email);
+    // Validate required fields
+    if (!email?.to || !email?.subject) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Missing required fields: to or subject' 
+      });
+    }
+
+    console.log("Sending Email to:", email.to);
+    
+    // Send email (using environment variables for credentials)
+    const status = await sendEmail(
+      UsersUsername,
       email.to,
       email.subject,
-      email.text,
-      email.textAsHtml,
-      email.attachments || []
-    )
-    res.status(500).json({ success: status, message: 'Email Sent!' });
-  }
-  catch{
-    console.error('Error during email sending:', error);
-    res.status(500).json({ success: false, message: 'Error sending email' });
+      email.textashtml,
+      email.textashtml,  // Default to false if not provided
+      email.attachments || []     // Default to empty array
+    );
+    if (!status) {
+      return res.status(500).json({ 
+        success: false, 
+        message: 'Failed to send email' 
+      });
+    }
+    // Proper success response
+    res.status(200).json({ 
+      success: true, 
+      message: 'Email sent successfully' 
+    });
+    
+  } catch (error) {
+    console.error('Email sending error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Internal server error',
+      error: error.message // Optional: include error details
+    });
   }
 });
 // POST route to create a new account
@@ -268,7 +293,7 @@ app.post('/create', async (req, res) => {
     // Create user
     await query(
       'INSERT INTO virtual_users (email, password, domain_id) VALUES (?, ?,1)',
-      [username + "@example.test", hashedPassword, `/var/mail/vhost/localhost/${username}@localhost`]
+      [username + "@example.test", hashedPassword, `/var/mail/vhost/localhost/${username}@example.test`]
     );
 
     res.status(201).json({ success: true, message: 'Account created' });
